@@ -98,7 +98,7 @@ for ax in axes.flat:
 
 plt.suptitle('ResNet Ablation Study: Comprehensive Verification with 6-Panel Analysis', fontsize=18, fontweight='bold', y=0.98)
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-plt.show()
+plt.show()  
 ```
 - [X]  **4. 회고를 잘 작성했나요?**
     - 주어진 문제를 해결하는 완성된 코드 내지 프로젝트 결과물에 대해
