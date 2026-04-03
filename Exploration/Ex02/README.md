@@ -25,8 +25,8 @@
     - 프로젝트 평가 기준에 더해 추가적으로 수행한 나만의 시도, 
     실험이 기록되어 있는지 확인
         - 중요! 잘 작성되었다고 생각되는 부분을 캡쳐해 근거로 첨부  
-        ```
-        import matplotlib.pyplot as plt
+  ```
+import matplotlib.pyplot as plt
 
 # 시각화 설정 (2행 3열: 상단 Loss / 하단 Accuracy)
 fig, axes = plt.subplots(2, 3, figsize=(22, 12))
@@ -98,7 +98,7 @@ for ax in axes.flat:
 
 plt.suptitle('ResNet Ablation Study: Comprehensive Verification with 6-Panel Analysis', fontsize=18, fontweight='bold', y=0.98)
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-plt.show()  
+plt.show()
 ```
 - [X]  **4. 회고를 잘 작성했나요?**
     - 주어진 문제를 해결하는 완성된 코드 내지 프로젝트 결과물에 대해
