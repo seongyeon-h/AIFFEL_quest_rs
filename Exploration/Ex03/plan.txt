@@ -1,0 +1,101 @@
+# 프로젝트: Data Augmentation 기법별 성능 비교 분석 (ResNet-50)
+
+> [!IMPORTANT]
+> **보고서 작성 지침 (Writing Style Guide)**
+> - **본문 및 설명**: 리서치 보고서의 신뢰성과 전문성을 위해 **"~합니다, ~입니다" (합쇼체)**를 기본으로 사용합니다.
+> - **불렛 포인트 및 요약**: 가독성을 높이기 위해 **"~함, ~임" (명사형/음슴체)**을 혼용할 수 있습니다.
+> - **코드 주석**: 모든 코드 라인에는 **상세한 한글 주석**을 달아 가시성을 높입니다.
+
+
+이 프로젝트는 ImageNet Dogs 데이터셋을 사용하여 여러 가지 데이터 증강 기법(No Augmentation, Basic Augmentation, CutMix, MixUp)이 이미지 분류 모델(ResNet-50)의 성능에 미치는 영향을 비교하고 분석하는 것을 목표로 합니다.
+
+## 1. 실험 환경 설정 및 데이터셋 준비
+
+### 1.1 하드웨어 가속(GPU) 환경 검증 및 라이브러리 로드
+- `torch`, `torchvision`, `matplotlib`, `numpy` 등 필수 라이브러리 임포트.
+- CUDA 지원 확인 및 device 설정 (`cuda` 또는 `cpu`).
+
+### 1.2 데이터 전처리 및 Transforms 정의 (실험 설계 및 현실성 강조)
+- `get_transform(mode)` 함수 구현.
+    - `no_aug`: 기본 정규화 및 크기 조정만 수행하여 실험의 기준점(Baseline)으로 활용.
+    - `basic_aug`: **현실적인 데이터 다양성**을 확보한 강력한 기본 실험군.
+        - `RandomResizedCrop(224, scale=(0.8, 1.0))`: 부분 특징 학습 및 위치 불변성 확보.
+        - `RandomHorizontalFlip(0.5)`, `RandomRotation(15)`: 자연스러운 대칭/수준 각도 반영.
+        - `ColorJitter(0.2, 0.2)`: 다양한 조명 및 촬영 환경 보강.
+    - [Insight] 비현실적인 상하 반전 및 과도한 회전(90도+)은 오히려 유해한 노이즈가 될 수 있다고 판단, 모델 성능과 현실성을 모두 잡는 '현실 중심 베이스라인' 구축.
+
+### 1.3 데이터셋 로드 및 배치 설정 (실험 설계 및 통찰)
+- ImageFolder를 사용하여 기본 데이터셋 구성.
+- 의도적 오버피팅 유도 및 정밀한 성능 검증을 위한 데이터 분할:
+    - Train(약 58.3%)과 Test(약 41.7%)로 분할 (Stanford Dogs 원본 비율 준수).
+    - [Insight] 학습 데이터 양을 의도적으로 제한함으로써 기본 모델이 오버피팅(과적합)되기 쉬운 환경을 조성, 다양한 Augmentation 기법이 일반화 성능 향상에 미치는 기여도를 보다 뚜렷하게 확인하고자 함.
+    - 또한, 더 많은 테스트 데이터를 확보함으로써 최종 정확도의 신뢰성과 정밀도를 높임.
+    - train_dataset_no_aug: `no_aug` transform 적용 Train set.
+    - train_dataset_basic_aug: `basic_aug` transform 적용 Train set.
+    - test_dataset: `no_aug` transform 적용 Test set.
+- 각각에 대한 `DataLoader` 구성 (Batch Size: 32).
+
+### 1.4 샘플 데이터 시각화
+- 훈련용 데이터 로더에서 배치 하나를 추출하여 `matplotlib`을 이용해 이미지 시각화.
+- 적용된 Augmentation 기법이 정상적으로 반영되었는지 검증.
+
+## 2. 고급 Augmentation 기법 (CutMix & MixUp) 함수 구현
+
+### 2.1 CutMix 구현
+- `get_clip_box(image_a, image_b)`: 랜덤한 바운딩 박스 영역 지정 계산 함수.
+- `mix_2_images`, `mix_2_labels`: 이미지 패치 합성 및 라벨 확률 분할 구현.
+- `cutmix(images, labels)`: 배치 단위 처리 래퍼 함수 구현 (기존 `augmentation.ipynb` 재사용 가능).
+
+### 2.2 MixUp 구현
+- `mixup_2_images`: 두 이미지 간 알파 블렌딩 및 라벨 농도 비례 병합 구현.
+- `mixup(images, labels)`: 라벨 Smoothing 적용 및 배치 단위 혼합 처리를 위한 래퍼 함수.
+
+### 2.3 고급 Augmentation 샘플 시각화
+- `cutmix` 및 `mixup` 함수를 통해 생성된 합성 이미지를 시각적으로 확인.
+- 바운딩 박스가 적절히 생성되었는지, 이미지와 라벨 가중치가 의도한 대로(면적/투명도 비례) 섞였는지 검증.
+
+## 3. 실험 가설 설정 (Experimental Hypothesis)
+
+### 3.1 실험군의 정의
+- **Baseline**: No Augment (Normalize + Resize만 수행)
+- **Basic Augmentation**: **Crop + Flip + Rotation(<15°) + ColorJitter** 조합 (현실성 강조)
+- **Advanced Augmentation**: Basic + MixUp, Basic + CutMix
+
+### 3.2 핵심 가설
+- **가설 1 (Baseline vs Basic Augment)**: 데이터 양이 제한적인 환경(0.583)에서 현실적인 기초 기법(Crop, Flip, Jitter 등)만으로도 무증강 모델보다 월등히 높은 일반화 성능을 보일 것이다.
+- **가설 2 (Advanced Augment의 우위)**: 단순 변형보다 **데이터의 라벨 관계를 섞는 고급 기법(MixUp, CutMix)**들이 정보를 더 효율적으로 압축 학습하게 하여 기본 증강보다 높은 정확도를 기록할 것이다.
+- **가설 3 (MixUp vs CutMix)**: 견종 분류는 특정 신체 부위의 지역 정보가 중요하다. 따라서 이미지를 투명하게 겹치는 MixUp보다 영역을 명확히 보존하며 섞는 **CutMix**가 오버피팅 억제 및 특징 추출 측면에서 가장 우수한 성능을 보일 것이다.
+
+## 4. 실험 설계 및 통합 학습 루틴 정의
+
+### 4.1 모델 생성 (ResNet-50)
+- `models.resnet50` 로드 (Weights: `IMAGENET1K_V1`).
+- `resnet50.fc`를 `nn.Linear(2048, num_classes)`로 재구성.
+- 공정한 실험을 위해 모델 평가 전 초기화할 수 있는 함수 기반 생성 사용 혹은 가중치 재생성.
+
+### 4.2 통합 학습 함수 정의 (Trainer)
+- `train_model(model, train_loader, test_loader, epochs, augmentation_type="none")` 구현
+    - 손실 함수 재정의 로직 포함 (`CutMix/MixUp` 확률 레이블 연산 특화).
+    - 인자 `augmentation_type` 에 맞춰 미니배치 별 추가 연산 제어.
+    - 매 에폭마다 Validation 정확도를 리스트로 저장해 반환.
+
+## 5. 실험 실행 및 훈련
+
+- 각 조건에 대해 학습 진행 (에폭은 최소 15~20회 권장)
+    1. **No Augmentation** 모델 훈련
+    2. **Basic Augmentation** 모델 훈련
+    3. **MixUp 적용** 모델 훈련
+    4. **CutMix 적용** 모델 훈련
+
+## 6. 실험 결과 분석 및 고찰
+
+### 6.1 모델별 학습 수치 데이터 요약 (Tabular Analysis)
+- 4가지 실험군(No Aug, Basic, MixUp, CutMix)의 최종 검증 정확도 및 손실(Loss) 수치를 한눈에 비교할 수 있도록 표(Table)로 요약 및 정리.
+
+### 6.2 가설 기반 시각화 분석 (Hypothesis-specific Visualization)
+- 학습 곡선(Learning Curve)을 시각화하고, 앞서 세운 3가지 가설(오버피팅 억제, 고급 증강의 우위, 컷믹스의 지역성 보존 등)이 실제 지표에 어떻게 반영되었는지 그래프 기반 분석.
+
+### 6.3 실험 결과 종합 분석 및 고찰 (Final Discussion)
+- 가설 검증 결과 요약: 실험 결과가 예측과 일치했는지, 혹은 의외의 결과가 나왔다면 그 물리적/통계적 원인은 무엇인지 고찰.
+- 데이터 증강 기법이 딥러닝 모델의 일반화에 미치는 영향에 대한 최종 결론 및 본 프로젝트를 통한 개인적 성장과 통찰 정리.
+
